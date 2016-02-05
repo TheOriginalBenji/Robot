@@ -6,18 +6,20 @@
  */
 
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import static javafx.application.Application.launch;
 import javafx.beans.property.*;
 import javafx.beans.value.*;
 import javafx.collections.*;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.*;
 import javafx.geometry.Point2D;
+import javafx.scene.Group;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 
 class Display extends ScrollPane {
@@ -29,7 +31,10 @@ class Display extends ScrollPane {
     protected Polygon robotStart, polyOne, polyTwo, polyThree, robotGoal;
     Polygon polyOneVirtual = new Polygon(), polyTwoVirtual = new Polygon(),
             polyThreeVirtual = new Polygon();
+    static Polygon tempPolygonOne = new Polygon(),
+            tempPolygonTwo = new Polygon(), tempPolygonThree = new Polygon();
     double scale, scale2;
+    private static ArrayList<Polyline> visibles = new ArrayList<>();
 
 //    private Label Start = new Label();
 //    private Label Goal = new Label();
@@ -59,7 +64,6 @@ class Display extends ScrollPane {
         HBox hbox = new HBox();
         hbox.setPadding(new Insets(15));
         VBox vbox = new VBox();
-        vbox.setPadding(new Insets(5));
         Pane pane = new Pane();
 
         // Hold the buttons in the HBox
@@ -95,16 +99,24 @@ class Display extends ScrollPane {
         polyThreeVirtual.setStrokeWidth(3);
         polyThreeVirtual.setFill(Color.TRANSPARENT);
 
+        tempPolygonOne.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale * 0.99))));
+        tempPolygonTwo.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale * 0.99))));
+        tempPolygonThree.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale * 0.99))));
+
         // Hold the hbox and pane in a vbox and add it to the group
-        vbox.getChildren().addAll(hbox, pane);
+        vbox.getChildren().addAll(pane, hbox);
         this.setContent(vbox);
         this.setHbarPolicy(ScrollBarPolicy.AS_NEEDED);
         this.setVbarPolicy(ScrollBarPolicy.AS_NEEDED);
 
         pane.setOnMouseDragged(e -> {
-            polyOneVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), 30.0))));
-            polyTwoVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), 30.0))));
-            polyThreeVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), 30.0))));
+            polyOneVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale))));
+            polyTwoVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale))));
+            polyThreeVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale))));
+            tempPolygonOne.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale * 0.99))));
+            tempPolygonTwo.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale * 0.99))));
+            tempPolygonThree.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale * 0.99))));
+
         });
         // lambda expressions for incrementing size of obstacles
 
@@ -115,6 +127,10 @@ class Display extends ScrollPane {
             polyTwoVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale))));
             polyThreeVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale))));
             robotGoal.getPoints().setAll(drawGoal(scale).getPoints());
+            tempPolygonOne.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale * 0.99))));
+            tempPolygonTwo.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale * 0.99))));
+            tempPolygonThree.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale * 0.99))));
+
         });
 
         // lambda expression for decrementing size of obstacles
@@ -126,15 +142,39 @@ class Display extends ScrollPane {
                 polyTwoVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale))));
                 polyThreeVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale))));
                 robotGoal.getPoints().setAll(drawGoal(scale).getPoints());
+                tempPolygonOne.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale * 0.99))));
+                tempPolygonTwo.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale * 0.99))));
+                tempPolygonThree.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale * 0.99))));
+
             }
         });
 
         // lambda expressions for resetting display
         btReset.setOnAction(e -> {
+            
+            
+            VBox vboxNew = new VBox();
+            Pane paneNew = new Pane();
+            // Assign robot and obstacles
+            robotStart = drawRobot(40.0);
+            polyOne = drawFirstPolygon();
+            polyTwo = drawSecondPolygon();
+            polyThree = drawThirdPolygon();
+            robotGoal = drawGoal(40.0);
+            pane.getChildren().clear();
             scale2 = 40.0;
             scale = 30.0;
             double s = 25.0;
-            
+            // Hold the buttons in the HBox
+
+            // Hold the polygons in a pane
+            paneNew.getChildren().addAll(robotStart, polyOne, polyTwo, polyThree,
+                    robotGoal);
+
+            // Hold the virtual polygons in a pane
+            paneNew.getChildren().addAll(polyOneVirtual, polyTwoVirtual,
+                    polyThreeVirtual);
+
             polyOne.getPoints().setAll(28 * s, 4 * s, 30 * s, 5 * s, 34 * s,
                     9 * s, 34 * s, 14 * s, 31 * s, 17 * s, 27 * s, 15 * s, 25 * s,
                     12 * s, 26 * s, 9 * s);
@@ -142,18 +182,143 @@ class Display extends ScrollPane {
                     28 * s, 18 * s, 33 * s, 24 * s, 32 * s, 27 * s, 27 * s);
             polyThree.getPoints().setAll(36 * s, 31 * s, 41 * s, 29 * s, 40 * s,
                     22 * s, 38 * s, 19 * s, 31 * s, 24 * s, 32 * s, 27 * s);
-            pane.getChildren().addAll(createControlPoints(polyOne.getPoints()));
-            pane.getChildren().addAll(createControlPoints(polyTwo.getPoints()));
-            pane.getChildren().addAll(createControlPoints(polyThree.getPoints()));
             polyOneVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale))));
             polyTwoVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale))));
             polyThreeVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale))));
+
+            polyOneVirtual.setStroke(Color.BLACK);
+            polyOneVirtual.setStrokeWidth(3);
+            polyOneVirtual.setFill(Color.TRANSPARENT);
+
+            polyTwoVirtual.setStroke(Color.BLACK);
+            polyTwoVirtual.setStrokeWidth(3);
+            polyTwoVirtual.setFill(Color.TRANSPARENT);
+
+            polyThreeVirtual.setStroke(Color.BLACK);
+            polyThreeVirtual.setStrokeWidth(3);
+            polyThreeVirtual.setFill(Color.TRANSPARENT);
+
+            tempPolygonOne.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale * 0.99))));
+            tempPolygonTwo.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale * 0.99))));
+            tempPolygonThree.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale * 0.99))));
+
+            paneNew.getChildren().addAll(createControlPoints(polyOne.getPoints()));
+            paneNew.getChildren().addAll(createControlPoints(polyTwo.getPoints()));
+            paneNew.getChildren().addAll(createControlPoints(polyThree.getPoints()));
+
+            // Hold the hbox and pane in a vbox and add it to the group
+            vboxNew.getChildren().addAll(paneNew, hbox);
+            this.setContent(vboxNew);
         });
 
         // lambda expressions for calculating the shortest path
         btCalculate.setOnAction(e -> {
+            visibles.clear();
+
+            VBox vboxNew = new VBox();
+            Pane paneNew = new Pane();
+            // Assign robot and obstacles
+            robotStart = drawRobot(40.0);
+            polyOne = drawFirstPolygon();
+            polyTwo = drawSecondPolygon();
+            polyThree = drawThirdPolygon();
+            robotGoal = drawGoal(40.0);
+            pane.getChildren().clear();
+            scale2 = 40.0;
+            scale = 30.0;
+            double s = 25.0;
+            
+            // Hold the polygons in a pane
+            paneNew.getChildren().addAll(robotStart, polyOne, polyTwo, polyThree,
+                    robotGoal);
+
+            // Hold the virtual polygons in a pane
+            paneNew.getChildren().addAll(polyOneVirtual, polyTwoVirtual,
+                    polyThreeVirtual);
+
+            polyOne.getPoints().setAll(28 * s, 4 * s, 30 * s, 5 * s, 34 * s,
+                    9 * s, 34 * s, 14 * s, 31 * s, 17 * s, 27 * s, 15 * s, 25 * s,
+                    12 * s, 26 * s, 9 * s);
+            polyTwo.getPoints().setAll(25 * s, 23 * s, 20 * s, 24 * s, 16 * s,
+                    28 * s, 18 * s, 33 * s, 24 * s, 32 * s, 27 * s, 27 * s);
+            polyThree.getPoints().setAll(36 * s, 31 * s, 41 * s, 29 * s, 40 * s,
+                    22 * s, 38 * s, 19 * s, 31 * s, 24 * s, 32 * s, 27 * s);
+            polyOneVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale))));
+            polyTwoVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale))));
+            polyThreeVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale))));
+
+            polyOneVirtual.setStroke(Color.BLACK);
+            polyOneVirtual.setStrokeWidth(3);
+            polyOneVirtual.setFill(Color.TRANSPARENT);
+
+            polyTwoVirtual.setStroke(Color.BLACK);
+            polyTwoVirtual.setStrokeWidth(3);
+            polyTwoVirtual.setFill(Color.TRANSPARENT);
+
+            polyThreeVirtual.setStroke(Color.BLACK);
+            polyThreeVirtual.setStrokeWidth(3);
+            polyThreeVirtual.setFill(Color.TRANSPARENT);
+
+            tempPolygonOne.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale * 0.99))));
+            tempPolygonTwo.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale * 0.99))));
+            tempPolygonThree.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale * 0.99))));
+
+            paneNew.getChildren().addAll(createControlPoints(polyOne.getPoints()));
+            paneNew.getChildren().addAll(createControlPoints(polyTwo.getPoints()));
+            paneNew.getChildren().addAll(createControlPoints(polyThree.getPoints()));
+
+            // Hold the hbox and pane in a vbox and add it to the group
+            vboxNew.getChildren().addAll(paneNew, hbox);
+            this.setContent(vboxNew);
+            //generateLists();
+            //generateVisibles();
+            //Shape temp1 = Shape.union(vpoly1,poly1);
+            for (int i = 0; i < polyTwoVirtual.getPoints().size(); i += 2) {
+                setVis(polyTwoVirtual.getPoints().get(i), polyTwoVirtual.getPoints().get(i + 1), polyOneVirtual);
+            }
+            for (int j = 0; j < polyThreeVirtual.getPoints().size(); j += 2) {
+                setVis(polyThreeVirtual.getPoints().get(j), polyThreeVirtual.getPoints().get(j + 1), polyTwoVirtual);
+            }
+            for (int k = 0; k < polyThreeVirtual.getPoints().size(); k += 2) {
+                setVis(polyThreeVirtual.getPoints().get(k), polyThreeVirtual.getPoints().get(k + 1), polyOneVirtual);
+            }
+            for (Polyline path : visibles) {
+                paneNew.getChildren().add(path);
+            }
 
         });
+    }
+
+    private static void setVis(double x, double y, Polygon poly) {
+        for (int i = 0; i < poly.getPoints().size(); i += 2) {
+            Polygon newPoly = new Polygon();
+            newPoly.getPoints().setAll(
+                    x, y,
+                    poly.getPoints().get(i),
+                    poly.getPoints().get(i + 1),
+                    poly.getPoints().get((i + 2) % poly.getPoints().size()),
+                    poly.getPoints().get((i + 3) % poly.getPoints().size())
+            );
+            Shape totalError = Shape.union(tempPolygonOne, tempPolygonTwo);
+            totalError = Shape.union(tempPolygonThree, totalError);
+            Shape inter = Shape.intersect(totalError, newPoly);
+            if (inter.getLayoutBounds().getHeight() <= 0 || inter.getLayoutBounds().getWidth() <= 0) {
+                //if(triangle.getBoundsInLocal().contains(vpoly1.getBoundsInLocal())){  
+                Polyline one = new Polyline();
+                Polyline two = new Polyline();
+                one.getPoints().setAll(x, y, poly.getPoints().get(i), poly.getPoints().get(i + 1));
+                two.getPoints().setAll(x, y, poly.getPoints().get((i + 2) % poly.getPoints().size()),
+                        poly.getPoints().get((i + 3) % poly.getPoints().size()));
+                System.out.println(visibles.size());
+
+                visibles.add(one);
+                visibles.add(two);
+            } else {
+                System.out.println("in else");
+            }
+
+        }
+
     }
 
     // Draw the robot at the starting location
@@ -253,8 +418,6 @@ class Display extends ScrollPane {
         // Initialize lists
         ObservableList<ResizePoly> anchors = FXCollections.observableArrayList();
 
-        
-        
         for (int i = 0; i < points.size(); i += 2) {
             final int idx = i;
 
