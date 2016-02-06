@@ -33,8 +33,16 @@ class Display extends ScrollPane {
             polyThreeVirtual = new Polygon();
     static Polygon tempPolygonOne = new Polygon(),
             tempPolygonTwo = new Polygon(), tempPolygonThree = new Polygon();
-    double scale, scale2;
+    double scale, scale2, scaler;
     private static ArrayList<Polyline> visibles = new ArrayList<>();
+    ArrayList<Node> closedList = new ArrayList<Node>(), openList = new ArrayList<Node>();
+    Map<Node, Double> scoreBest = new HashMap<>(), scoreEstimate = new HashMap<>();
+    Node current;
+    Map<Node, Node> parent = new HashMap<>();
+    double keepTrack = 0, keepTrack1 = 0;
+    ArrayList<Line> holdNodes = new ArrayList<>();
+    ArrayList<Node> noodles = new ArrayList<>();
+    Node start = new Node(), goal = new Node();
 
 //    private Label Start = new Label();
 //    private Label Goal = new Label();
@@ -47,12 +55,15 @@ class Display extends ScrollPane {
         this.btReset = btReset;
         this.btCalculate = btCalculate;
 
+        scaler = 40.0;
+        scale = 30.0;
+
         // Assign robot and obstacles
-        robotStart = drawRobot(40.0);
+        robotStart = drawRobot(scaler);
         polyOne = drawFirstPolygon();
         polyTwo = drawSecondPolygon();
         polyThree = drawThirdPolygon();
-        robotGoal = drawGoal(40.0);
+        robotGoal = drawGoal(scaler);
 
         // Set button widths
         btPlus.maxWidth(40.0);
@@ -81,8 +92,6 @@ class Display extends ScrollPane {
         pane.getChildren().addAll(createControlPoints(polyTwo.getPoints()));
         pane.getChildren().addAll(createControlPoints(polyThree.getPoints()));
 
-        scale = 30.0;
-
         // Draw the virtual obstacles
         polyOneVirtual.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale))));
         polyOneVirtual.setStroke(Color.BLACK);
@@ -102,6 +111,8 @@ class Display extends ScrollPane {
         tempPolygonOne.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyOne.getPoints(), scale * 0.99))));
         tempPolygonTwo.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyTwo.getPoints(), scale * 0.99))));
         tempPolygonThree.getPoints().setAll(getConvexHull(sortPoints(virtualToReal(polyThree.getPoints(), scale * 0.99))));
+
+        keepTrack1 = 19;
 
         // Hold the hbox and pane in a vbox and add it to the group
         vbox.getChildren().addAll(pane, hbox);
@@ -151,8 +162,7 @@ class Display extends ScrollPane {
 
         // lambda expressions for resetting display
         btReset.setOnAction(e -> {
-            
-            
+
             VBox vboxNew = new VBox();
             Pane paneNew = new Pane();
             // Assign robot and obstacles
@@ -227,7 +237,12 @@ class Display extends ScrollPane {
             scale2 = 40.0;
             scale = 30.0;
             double s = 25.0;
-            
+
+            start.setXY(10.0, 10 + .866 * scaler);
+            goal.setXY(810.0, 810 + .866 * scaler);
+
+            noodles = aStar(start, goal);
+
             // Hold the polygons in a pane
             paneNew.getChildren().addAll(robotStart, polyOne, polyTwo, polyThree,
                     robotGoal);
@@ -235,6 +250,15 @@ class Display extends ScrollPane {
             // Hold the virtual polygons in a pane
             paneNew.getChildren().addAll(polyOneVirtual, polyTwoVirtual,
                     polyThreeVirtual);
+            
+            for (int i = 0; i < noodles.size() / 2; i += 2) {
+                holdNodes.add(new Line(noodles.get(i).getX(), noodles.get(i).getY(),
+                        noodles.get(i + 1).getX(), noodles.get(i + 1).getY()));
+                holdNodes.get(i).setFill(Color.RED);
+                holdNodes.get(i).setStrokeWidth(5);
+            }
+            
+            paneNew.getChildren().addAll(holdNodes);
 
             polyOne.getPoints().setAll(28 * s, 4 * s, 30 * s, 5 * s, 34 * s,
                     9 * s, 34 * s, 14 * s, 31 * s, 17 * s, 27 * s, 15 * s, 25 * s,
@@ -266,6 +290,8 @@ class Display extends ScrollPane {
             paneNew.getChildren().addAll(createControlPoints(polyOne.getPoints()));
             paneNew.getChildren().addAll(createControlPoints(polyTwo.getPoints()));
             paneNew.getChildren().addAll(createControlPoints(polyThree.getPoints()));
+
+            
 
             // Hold the hbox and pane in a vbox and add it to the group
             vboxNew.getChildren().addAll(paneNew, hbox);
@@ -565,6 +591,92 @@ class Display extends ScrollPane {
         }
 
         return ptArr[rightMostIndex];
+    }
+
+    public ArrayList<Node> aStar(Node start, Node goal) {
+        ArrayList<Node> arrList = new ArrayList<>();
+
+        // clear the old sets
+        openList.clear();
+        closedList.clear();
+        int count = 0;
+
+        //add the start to tentative nodes
+        openList.add(start);
+        Node current = start;
+
+        scoreBest.put(start, 0.0);
+        scoreEstimate.put(goal, estimateCost(start, goal));
+
+        while (true) {
+            if (openList.isEmpty()) {
+                break;
+            }
+            if (count != 0) {
+                current = lowestScore(openList, scoreEstimate);
+            } count++;
+            if (current.equals(goal)) {
+                return findPath(goal);
+            }
+            openList.remove(current);
+            closedList.add(current);
+            for (Node node : current.getNeighbors()) {
+                if (closedList.contains(node)) {
+                    continue;
+                }
+                keepTrack = scoreBest.get(current) + actualCost(current, node);
+                if (!openList.contains(node)) {
+                    openList.add(node);
+                } else if (keepTrack >= scoreBest.get(node)) {
+                    continue;
+                }
+
+                parent.replace(node, current);
+                scoreBest.replace(node, keepTrack);
+                scoreEstimate.replace(node, scoreBest.get(node) + actualCost(node, goal));
+            }
+
+        }
+
+        return arrList;
+    }
+
+    public Node lowestScore(ArrayList<Node> openList, Map<Node, Double> scoreEstimate) {
+        double lowest = Double.MAX_VALUE;
+        Node lowestPoint = new Node();
+
+        for (int i = 0; i < openList.size(); i++) {
+            if (scoreEstimate.get(openList.get(i)) < lowest) {
+                lowest = scoreEstimate.get(openList.get(i));
+                lowestPoint.setXY(openList.get(i).getX(), openList.get(i).getY());
+            }
+        }
+        return lowestPoint;
+    }
+
+    public Double actualCost(Node nodeOne, Node nodeTwo) {
+        return Math.pow(.5, Math.pow(2, nodeOne.getX() - nodeTwo.getX())
+                + Math.pow(2, nodeOne.getY() - nodeTwo.getY()));
+    }
+
+    public Double estimateCost(Node nodeOne, Node nodeTwo) {
+        return Math.pow(2, nodeOne.getX() - nodeTwo.getX())
+                + Math.pow(2, nodeOne.getY() - nodeTwo.getY());
+    }
+
+    public ArrayList<Node> findPath(Node current) {
+        ArrayList<Node> path = new ArrayList<>();
+        path.add(current);
+
+        while (true) {
+            if (current.getParent() == null) {
+                break;
+            }
+            current = current.getParent();
+            path.add(current);
+        }
+
+        return path;
     }
 
 }
